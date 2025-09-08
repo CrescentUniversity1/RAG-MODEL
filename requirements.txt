@@ -9,3 +9,8 @@ pydantic==2.9.2
 textblob==0.18.0.post0
 pypdf==4.3.1
 orjson==3.10.7
+accelerate
+fastapi
+streamlit
+torch
+transformers
