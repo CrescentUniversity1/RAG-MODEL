@@ -1,0 +1,53 @@
+assets/style.css
+
+html, body, .stApp {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f9fcff;
+}
+h1, h2, h3, h4 {
+    font-family: 'Merriweather', serif;
+    color: #004080;
+}
+.chat-message-user {
+    background-color: #d6eaff;
+    padding: 12px;
+    border-radius: 15px;
+    margin-bottom: 10px;
+    margin-left: auto;
+    max-width: 75%;
+    font-weight: 550;
+    color: #000;
+}
+.chat-message-assistant {
+    background-color: #f5f5f5;
+    padding: 12px;
+    border-radius: 15px;
+    margin-bottom: 10px;
+    margin-right: auto;
+    max-width: 75%;
+    font-weight: 600;
+    color: #000;
+}
+.related-question {
+    background-color: #e6f2ff;
+    padding: 8px 12px;
+    margin: 6px 6px 6px 0;
+    display: inline-block;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.department-label {
+    font-size: 0.8rem;
+    color: #004080;
+    font-style: italic;
+}
+.sidebar .sidebar-content {
+    background-color: #e0f0ff;
+}
+.stButton>button {
+    border-radius: 10px;
+    background-color: #004080;
+    color: white;
+    font-weight: bold;
+}
