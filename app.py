@@ -1,9 +1,10 @@
 """
-Streamlit UI for CrescentBot (Fully RAG-enabled)
+Streamlit UI for CrescentBot (Fully RAG-enabled with Emotion Detection)
 """
 
 import os
 import streamlit as st
+from textblob import TextBlob  # For emotion/sentiment detection
 from utils.rag_pipeline import RAGIndex, Generator, RAGPipeline, ingest_json_files
 from utils.preprocess import preprocess_text
 from utils.memory import init_memory
@@ -40,9 +41,19 @@ def load_pipeline():
 
 pipeline = load_pipeline()
 
+# Function for emotion detection (using TextBlob for sentiment analysis)
+def detect_emotion(query):
+    blob = TextBlob(query)
+    polarity = blob.sentiment.polarity
+    if polarity > 0.1:
+        return "positive"
+    elif polarity < -0.1:
+        return "negative"
+    return "neutral"
+
 # Streamlit UI
 st.set_page_config(page_title="CrescentBot RAG", layout="wide")
-st.title("🌙 CrescentBot (Fully RAG-enabled)")
+st.title("🌙 CrescentBot (Fully RAG-enabled with Emotion Detection)")
 
 # Display warning if no documents were indexed
 if not pipeline.index.metadata:
@@ -59,6 +70,9 @@ if query := st.chat_input("Ask me anything about Crescent courses..."):
         st.markdown(query)
 
     with st.spinner("Thinking..."):
+        # Detect emotion/sentiment
+        emotion = detect_emotion(query)
+
         # Handle greetings and social triggers (rule-based)
         if is_greeting(query):
             response = greeting_responses()
@@ -84,7 +98,13 @@ if query := st.chat_input("Ask me anything about Crescent courses..."):
             # Use RAG pipeline for retrieval and generation
             rag_out = pipeline.answer(processed_query)
             if rag_out["answer"] and rag_out["retrieved"]:
-                response = f"{dynamic_prefix()} {rag_out['answer']}"
+                prefix = dynamic_prefix()
+                # Adjust response based on detected emotion
+                if emotion == "negative":
+                    prefix = "I'm sorry you're feeling that way—let's see if this helps: 😊 "
+                elif emotion == "positive":
+                    prefix = "I'm glad you're feeling good! Here's what I found: 🌟 "
+                response = f"{prefix}{rag_out['answer']}"
                 log_query(query, max([score for _, score in rag_out["retrieved"]], default=0.0))
             else:
                 response = dynamic_not_found()
