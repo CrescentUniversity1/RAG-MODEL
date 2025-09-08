@@ -46,7 +46,7 @@ def split_text_into_passages(text: str, chunk_size: int = 400, overlap: int = 50
 def ingest_json_files(data_dir: str) -> List[Dict]:
     """Load course_data.json and crescent_qa.json into passage chunks."""
     docs = []
-    for fname in ["course_data.json", "crescent_qa.json"]:
+    for fname in ["data/course_data.json", "data/crescent_qa.json"]:
         path = Path(data_dir) / fname
         if not path.exists():
             continue
@@ -173,8 +173,8 @@ class RAGPipeline:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="CRESCENTBOT/data")
-    parser.add_argument("--index_dir", type=str, default="CRESCENTBOT/index")
+    parser.add_argument("--data_dir", type=str, default="RAG-MODEL/data")
+    parser.add_argument("--index_dir", type=str, default="RAG-MODEL/index")
     parser.add_argument("--rebuild", action="store_true")
     args = parser.parse_args()
 
