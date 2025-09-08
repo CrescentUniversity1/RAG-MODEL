@@ -5,5 +5,3 @@ transformers==4.44.2
 accelerate==0.34.2
 symspellpy==6.7.7
 torch==2.4.1
-rapidfuzz==3.10.0
-pandas==2.2.3
