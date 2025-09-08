@@ -4,7 +4,6 @@ Streamlit UI for CrescentBot (RAG-enabled)
 
 import os
 import streamlit as st
-
 from utils.rag_pipeline import RAGIndex, Generator, RAGPipeline, ingest_json_files
 from utils.embedding import load_model, load_dataset, compute_question_embeddings
 from utils.preprocess import preprocess_text
@@ -12,12 +11,27 @@ from utils.search import find_response
 from utils.memory import init_memory
 from utils.log_utils import log_query
 from utils.greetings import is_greeting, greeting_responses, is_social_trigger, social_response
-from utils.course_query import extract_course_query  # for extracting level/semester
+from utils.course_query import extract_course_query, get_courses_for_query
+from utils.tone import dynamic_prefix, dynamic_not_found
+from utils.rewrite import rewrite_followup
 
 INDEX_DIR = "RAG-MODEL/index"
 DATA_DIR = "RAG-MODEL/data"
 
-# --------------------------- Load or build RAG index
+# Initialize session state
+init_memory()
+
+# Load course data and embeddings
+@st.cache_resource(show_spinner=True)
+def load_resources():
+    model = load_model()
+    dataset = load_dataset(f"{DATA_DIR}/crescent_qa.json")
+    embeddings = compute_question_embeddings(dataset["question"].tolist(), model)
+    return model, dataset, embeddings
+
+model, dataset, embeddings = load_resources()
+
+# Load or build RAG index
 @st.cache_resource(show_spinner=True)
 def load_pipeline():
     idx = RAGIndex()
@@ -38,7 +52,7 @@ def load_pipeline():
 
 pipeline = load_pipeline()
 
-# --------------------------- Streamlit UI
+# Streamlit UI
 st.set_page_config(page_title="CrescentBot RAG", layout="wide")
 st.title("🌙 CrescentBot (RAG-enabled)")
 
@@ -46,10 +60,7 @@ st.title("🌙 CrescentBot (RAG-enabled)")
 if not pipeline.index.metadata:
     st.warning("No documents were indexed. Please ensure course_data.json and crescent_qa.json are in RAG-MODEL/data/ and contain valid data.")
 
-# Chat session state
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
-
+# Display chat history
 for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -60,13 +71,46 @@ if query := st.chat_input("Ask me anything about Crescent courses..."):
         st.markdown(query)
 
     with st.spinner("Thinking..."):
-        out = pipeline.answer(query)
-        answer = out["answer"]
+        # Handle greetings and social triggers
+        if is_greeting(query):
+            response = greeting_responses()
+        elif is_social_trigger(query):
+            response = social_response(query)
+        else:
+            # Preprocess query
+            processed_query = preprocess_text(query, debug=True)
+            # Rewrite query with context from last query
+            processed_query = rewrite_followup(processed_query, st.session_state["last_query_info"])
+            # Extract course-specific query info
+            query_info = extract_course_query(processed_query)
+            st.session_state["last_query_info"] = query_info
 
-    st.session_state["messages"].append({"role": "assistant", "content": answer})
-    with st.chat_message("assistant"):
-        st.markdown(answer)
+            # Try course-specific query first
+            course_data = load_course_data(f"{DATA_DIR}/course_data.json")
+            course_response = get_courses_for_query(query_info, course_data)
 
-        with st.expander("Show supporting passages"):
-            for md, score in out["retrieved"]:
-                st.markdown(f"**{md['source']}** — {md['id']} (score={score:.3f})\n\n{md['text']}")
+            if course_response:
+                response = f"{dynamic_prefix()} {course_response}"
+            else:
+                # Fall back to embedding-based search
+                emb_response, department, score, related = find_response(processed_query, dataset, embeddings, model)
+                if score >= 0.6:
+                    response = f"{dynamic_prefix()} {emb_response}"
+                    log_query(query, score)
+                else:
+                    # Fall back to RAG pipeline
+                    rag_out = pipeline.answer(processed_query)
+                    if rag_out["answer"] and rag_out["retrieved"]:
+                        response = f"{dynamic_prefix()} {rag_out['answer']}"
+                        log_query(query, max([score for _, score in rag_out["retrieved"]], default=0.0))
+                    else:
+                        response = dynamic_not_found()
+                        log_query(query, 0.0)
+
+        st.session_state["messages"].append({"role": "assistant", "content": response})
+        with st.chat_message("assistant"):
+            st.markdown(response)
+            if "rag_out" in locals() and rag_out["retrieved"]:
+                with st.expander("Show supporting passages"):
+                    for md, score in rag_out["retrieved"]:
+                        st.markdown(f"**{md['source']}** — {md['id']} (score={score:.3f})\n\n{md['text']}")
