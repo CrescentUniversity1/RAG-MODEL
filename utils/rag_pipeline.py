@@ -1,4 +1,3 @@
-# File: CRESCENTBOT/utils/rag_pipeline.py
 """
 RAG Pipeline for CrescentBot
 
@@ -27,7 +26,6 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 
 # --------------------------- Text splitting
-
 def split_text_into_passages(text: str, chunk_size: int = 400, overlap: int = 50) -> List[str]:
     if chunk_size <= overlap:
         raise ValueError("chunk_size must be greater than overlap")
@@ -42,38 +40,50 @@ def split_text_into_passages(text: str, chunk_size: int = 400, overlap: int = 50
 
 
 # --------------------------- Ingestion
-
 def ingest_json_files(data_dir: str) -> List[Dict]:
     """Load course_data.json and crescent_qa.json into passage chunks."""
     docs = []
-    for fname in ["data/course_data.json", "data/crescent_qa.json"]:
-        path = Path(data_dir) / fname
+    data_dir_path = Path(data_dir)
+    if not data_dir_path.exists():
+        print(f"Data directory does not exist: {data_dir}")
+        return docs
+    for fname in ["course_data.json", "crescent_qa.json"]:
+        path = data_dir_path / fname
+        print(f"Checking file: {path}")  # Debug
         if not path.exists():
+            print(f"File not found: {path}")
             continue
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON in {path}: {e}")
+            continue
+        if not data:
+            print(f"No data in {path}")
+            continue
         if isinstance(data, dict):
             items = data.items()
         elif isinstance(data, list):
             items = enumerate(data)
         else:
+            print(f"Unsupported data type in {path}: {type(data)}")
             continue
-
         for key, val in items:
             text = str(val)
             passages = split_text_into_passages(text)
+            print(f"File {fname}: {len(passages)} passages from key {key}")  # Debug
             for i, p in enumerate(passages):
                 docs.append({
                     "id": f"{fname}_{key}_{i}",
                     "source": fname,
                     "text": p,
                 })
+    print(f"Total documents loaded: {len(docs)}")  # Debug
     return docs
 
 
 # --------------------------- Embedding & Indexing
-
 class RAGIndex:
     def __init__(self, embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         self.embedder = SentenceTransformer(embed_model_name)
@@ -82,7 +92,10 @@ class RAGIndex:
 
     def build(self, docs: List[Dict]):
         if not docs:
-            raise ValueError("No documents found for indexing. Please check your data directory.")
+            print("Warning: No documents found for indexing. Initializing empty index.")
+            self.metadata = []
+            self.index = faiss.IndexFlatIP(384)  # Default dimension for all-MiniLM-L6-v2
+            return
         texts = [d["text"] for d in docs]
         self.metadata = docs
         embs = self.embedder.encode(texts, convert_to_numpy=True, show_progress_bar=True)
@@ -90,7 +103,6 @@ class RAGIndex:
         d = embs.shape[1]
         self.index = faiss.IndexFlatIP(d)
         self.index.add(embs)
-
 
     def save(self, path: str):
         os.makedirs(path, exist_ok=True)
@@ -114,7 +126,6 @@ class RAGIndex:
 
 
 # --------------------------- Generator
-
 PROMPT_TMPL = (
     "You are CrescentBot, a helpful assistant. Use the provided context to answer.\n"
     "If context lacks the answer, say you don't know.\n\n"
@@ -146,7 +157,6 @@ class Generator:
 
 
 # --------------------------- Pipeline
-
 class RAGPipeline:
     def __init__(self, index: RAGIndex, generator: Generator):
         self.index = index
