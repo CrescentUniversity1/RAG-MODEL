@@ -1,8 +1,5 @@
-# File: CRESCENTBOT/app.py
 """
 Streamlit UI for CrescentBot (RAG-enabled)
-
-This version replaces the old embedding/search backend with the new RAG pipeline.
 """
 
 import os
@@ -20,6 +17,10 @@ def load_pipeline():
     if not os.path.exists(INDEX_DIR):
         st.info("Building FAISS index from JSON knowledge base... this may take a while.")
         docs = ingest_json_files(DATA_DIR)
+        if not docs:
+            st.error(f"No documents found in {DATA_DIR}. Please ensure course_data.json and crescent_qa.json exist and contain valid data.")
+        else:
+            st.write(f"Loaded {len(docs)} documents from {DATA_DIR}")
         idx.build(docs)
         idx.save(INDEX_DIR)
     else:
@@ -33,6 +34,10 @@ pipeline = load_pipeline()
 # --------------------------- Streamlit UI
 st.set_page_config(page_title="CrescentBot RAG", layout="wide")
 st.title("🌙 CrescentBot (RAG-enabled)")
+
+# Display warning if no documents were indexed
+if not pipeline.index.metadata:
+    st.warning("No documents were indexed. Please ensure course_data.json and crescent_qa.json are in RAG-MODEL/data/ and contain valid data.")
 
 # Chat session state
 if "messages" not in st.session_state:
