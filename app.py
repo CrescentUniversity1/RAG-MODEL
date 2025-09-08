@@ -10,8 +10,8 @@ import streamlit as st
 
 from utils.rag_pipeline import RAGIndex, Generator, RAGPipeline, ingest_json_files
 
-INDEX_DIR = "CRESCENTBOT/index"
-DATA_DIR = "CRESCENTBOT/data"
+INDEX_DIR = "RAG-MODEL/index"
+DATA_DIR = "RAG-MODEL/data"
 
 # --------------------------- Load or build RAG index
 @st.cache_resource(show_spinner=True)
