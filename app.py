@@ -5,9 +5,7 @@ Streamlit UI for CrescentBot (RAG-enabled)
 import os
 import streamlit as st
 from utils.rag_pipeline import RAGIndex, Generator, RAGPipeline, ingest_json_files
-from utils.embedding import load_model, load_dataset, compute_question_embeddings
 from utils.preprocess import preprocess_text
-from utils.search import find_response
 from utils.memory import init_memory
 from utils.log_utils import log_query
 from utils.greetings import is_greeting, greeting_responses, is_social_trigger, social_response
@@ -21,15 +19,15 @@ DATA_DIR = "RAG-MODEL/data"
 # Initialize session state
 init_memory()
 
-# Load course data and embeddings
+# Load course data for context enhancement
 @st.cache_resource(show_spinner=True)
-def load_resources():
-    model = load_model()
-    dataset = load_dataset(f"{DATA_DIR}/crescent_qa.json")
-    embeddings = compute_question_embeddings(dataset["question"].tolist(), model)
-    return model, dataset, embeddings
-
-model, dataset, embeddings = load_resources()
+def load_course_data():
+    try:
+        with open(f"{DATA_DIR}/course_data.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        st.error(f"Course data not found at {DATA_DIR}/course_data.json")
+        return []
 
 # Load or build RAG index
 @st.cache_resource(show_spinner=True)
@@ -51,6 +49,7 @@ def load_pipeline():
     return pipeline
 
 pipeline = load_pipeline()
+course_data = load_course_data()
 
 # Streamlit UI
 st.set_page_config(page_title="CrescentBot RAG", layout="wide")
@@ -81,31 +80,22 @@ if query := st.chat_input("Ask me anything about Crescent courses..."):
             processed_query = preprocess_text(query, debug=True)
             # Rewrite query with context from last query
             processed_query = rewrite_followup(processed_query, st.session_state["last_query_info"])
-            # Extract course-specific query info
+            # Extract course-specific query info for context
             query_info = extract_course_query(processed_query)
             st.session_state["last_query_info"] = query_info
 
-            # Try course-specific query first
-            course_data = load_course_data(f"{DATA_DIR}/course_data.json")
-            course_response = get_courses_for_query(query_info, course_data)
+            # Enhance query with course-specific info
+            if query_info["department"] and query_info["level"] and query_info["semester"]:
+                processed_query += f" for {query_info['department']} {query_info['level']} level {query_info['semester']} semester"
 
-            if course_response:
-                response = f"{dynamic_prefix()} {course_response}"
+            # Use RAG pipeline
+            rag_out = pipeline.answer(processed_query)
+            if rag_out["answer"] and rag_out["retrieved"]:
+                response = f"{dynamic_prefix()} {rag_out['answer']}"
+                log_query(query, max([score for _, score in rag_out["retrieved"]], default=0.0))
             else:
-                # Fall back to embedding-based search
-                emb_response, department, score, related = find_response(processed_query, dataset, embeddings, model)
-                if score >= 0.6:
-                    response = f"{dynamic_prefix()} {emb_response}"
-                    log_query(query, score)
-                else:
-                    # Fall back to RAG pipeline
-                    rag_out = pipeline.answer(processed_query)
-                    if rag_out["answer"] and rag_out["retrieved"]:
-                        response = f"{dynamic_prefix()} {rag_out['answer']}"
-                        log_query(query, max([score for _, score in rag_out["retrieved"]], default=0.0))
-                    else:
-                        response = dynamic_not_found()
-                        log_query(query, 0.0)
+                response = dynamic_not_found()
+                log_query(query, 0.0)
 
         st.session_state["messages"].append({"role": "assistant", "content": response})
         with st.chat_message("assistant"):
