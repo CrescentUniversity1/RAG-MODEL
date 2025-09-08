@@ -81,6 +81,8 @@ class RAGIndex:
         self.metadata: List[Dict] = []
 
     def build(self, docs: List[Dict]):
+        if not docs:
+            raise ValueError("No documents found for indexing. Please check your data directory.")
         texts = [d["text"] for d in docs]
         self.metadata = docs
         embs = self.embedder.encode(texts, convert_to_numpy=True, show_progress_bar=True)
@@ -88,6 +90,7 @@ class RAGIndex:
         d = embs.shape[1]
         self.index = faiss.IndexFlatIP(d)
         self.index.add(embs)
+
 
     def save(self, path: str):
         os.makedirs(path, exist_ok=True)
