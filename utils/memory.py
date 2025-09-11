@@ -20,6 +20,7 @@ def init_memory():
 
 def init_database(db_path="RAG-MODEL/user_history.db"):
     """Initialize SQLite database for long-term memory."""
+    conn = None
     try:
         conn = sqlite3.connect(db_path, check_same_thread=False)
         c = conn.cursor()
@@ -38,10 +39,12 @@ def init_database(db_path="RAG-MODEL/user_history.db"):
     except sqlite3.Error as e:
         print(f"Failed to initialize database: {e}")
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 def save_interaction(query, response, query_info, sentiment, db_path="RAG-MODEL/user_history.db"):
     """Save a user interaction to the long-term memory database."""
+    conn = None
     try:
         conn = sqlite3.connect(db_path, check_same_thread=False)
         c = conn.cursor()
@@ -55,21 +58,25 @@ def save_interaction(query, response, query_info, sentiment, db_path="RAG-MODEL/
     except sqlite3.Error as e:
         print(f"Failed to save interaction: {e}")
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 def get_user_history(limit=10, db_path="RAG-MODEL/user_history.db"):
     """Retrieve recent user interactions from long-term memory."""
+    conn = None
     try:
         conn = sqlite3.connect(db_path, check_same_thread=False)
         c = conn.cursor()
         c.execute("SELECT timestamp, user_query, response, department, level, semester, sentiment, keywords FROM history ORDER BY timestamp DESC LIMIT ?", (limit,))
         history = c.fetchall()
-        conn.close()
         return [{"timestamp": h[0], "query": h[1], "response": h[2], "department": h[3], "level": h[4], 
                  "semester": h[5], "sentiment": h[6], "keywords": h[7].split() if h[7] else []} for h in history]
     except sqlite3.Error as e:
         print(f"Failed to retrieve history: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 def get_relevant_context(limit=3, db_path="RAG-MODEL/user_history.db"):
     """Get relevant context from long-term memory to enhance RAG queries."""
