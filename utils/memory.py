@@ -13,8 +13,8 @@ def init_memory():
             "keywords": [],
             "sentiment": None
         }
-    if "chat" not in st.session_state:
-        st.session_state["chat"] = []
+    if "messages" not in st.session_state:  # Changed from 'chat' to 'messages' to match app.py
+        st.session_state["messages"] = []
     if "bot_greeted" not in st.session_state:
         st.session_state["bot_greeted"] = False
 
