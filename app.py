@@ -1,7 +1,3 @@
-"""
-Streamlit UI for CrescentBot (Fully RAG-enabled with Emotion Detection and Memory)
-"""
-
 import os
 import streamlit as st
 from textblob import TextBlob
@@ -13,6 +9,9 @@ from utils.greetings import is_greeting, greeting_responses, is_social_trigger, 
 from utils.course_query import extract_course_query
 from utils.tone import dynamic_prefix, dynamic_not_found
 from utils.rewrite import rewrite_followup
+
+# ✅ Must be first Streamlit command
+st.set_page_config(page_title="CrescentBot RAG", layout="wide")
 
 INDEX_DIR = "RAG-MODEL/index"
 DATA_DIR = "RAG-MODEL/data"
@@ -42,6 +41,8 @@ def load_pipeline():
 
 pipeline = load_pipeline()
 
+st.title("🌙 CrescentBot (Fully RAG-enabled with Emotion Detection)")
+
 # Function for emotion detection
 def detect_emotion(query):
     blob = TextBlob(query)
@@ -51,10 +52,6 @@ def detect_emotion(query):
     elif polarity < -0.1:
         return "negative"
     return "neutral"
-
-# Streamlit UI
-st.set_page_config(page_title="CrescentBot RAG", layout="wide")
-st.title("🌙 CrescentBot (Fully RAG-enabled with Emotion Detection)")
 
 # Display warning if no documents were indexed
 if not pipeline.index.metadata:
